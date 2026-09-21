@@ -17,3 +17,6 @@ frontend/node_modules/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Agent skills & internal configs
+.agents/
