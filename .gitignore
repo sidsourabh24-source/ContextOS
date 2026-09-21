@@ -1,0 +1,19 @@
+# Build & Package outputs
+backend/target/
+frontend/.next/
+frontend/out/
+frontend/node_modules/
+*.class
+*.jar
+*.war
+
+# Environment & Logs
+.env
+.env.local
+*.log
+
+# IDE & OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
