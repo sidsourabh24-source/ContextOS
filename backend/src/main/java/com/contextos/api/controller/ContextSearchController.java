@@ -1,9 +1,11 @@
 package com.contextos.api.controller;
 
+import com.contextos.analytics.RetrievalTracer;
 import com.contextos.api.dto.ContextSearchRequest;
 import com.contextos.api.dto.ContextSearchResponse;
 import com.contextos.auth.TenantContext;
 import com.contextos.common.ContextPackage;
+import com.contextos.common.cache.RedisCacheManager;
 import com.contextos.retrieval.context.ContextAssembler;
 import com.contextos.retrieval.hybrid.CandidateChunk;
 import com.contextos.retrieval.hybrid.HybridSearchMerger;
@@ -16,6 +18,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @RestController
@@ -27,6 +30,8 @@ public class ContextSearchController {
     private final AclRetrievalFilter aclRetrievalFilter;
     private final DeterministicReranker deterministicReranker;
     private final ContextAssembler contextAssembler;
+    private final RedisCacheManager redisCacheManager;
+    private final RetrievalTracer retrievalTracer;
 
     @PostMapping("/search")
     public ResponseEntity<ContextSearchResponse> searchContext(@Valid @RequestBody ContextSearchRequest request) {
@@ -40,21 +45,32 @@ public class ContextSearchController {
                     .build());
         }
 
-        // 1. Hybrid Search
+        String userId = tenantId.toString();
+
+        // 1. Check Redis Cache
+        Optional<ContextPackage> cachedPkg = redisCacheManager.getCachedContext(tenantId, userId, request.getQuery());
+        if (cachedPkg.isPresent()) {
+            return ResponseEntity.ok(ContextSearchResponse.builder()
+                    .success(true)
+                    .contextPackage(cachedPkg.get())
+                    .build());
+        }
+
+        // 2. Hybrid Search
         List<CandidateChunk> candidates = hybridSearchMerger.searchAndMerge(tenantId, request.getQuery(), request.getTopK());
 
-        // 2. ACL Authorization Filter (At retrieval time!)
+        // 3. ACL Authorization Filter (At retrieval time!)
         List<CandidateChunk> authorized = aclRetrievalFilter.filterAuthorized(
                 tenantId,
-                tenantId.toString(),
+                userId,
                 request.getUserGroups(),
                 candidates
         );
 
-        // 3. Deterministic Reranker
+        // 4. Deterministic Reranker
         List<RankedChunk> ranked = deterministicReranker.rerank(authorized);
 
-        // 4. Token-Budgeted Context Package Assembly
+        // 5. Token-Budgeted Context Package Assembly
         long latencyMs = System.currentTimeMillis() - startTime;
         ContextPackage contextPackage = contextAssembler.assembleContext(
                 request.getQuery(),
@@ -62,6 +78,10 @@ public class ContextSearchController {
                 request.getTokenBudget(),
                 latencyMs
         );
+
+        // 6. Write to Cache and Telemetry
+        redisCacheManager.cacheContext(tenantId, userId, request.getQuery(), contextPackage);
+        retrievalTracer.recordTrace(tenantId, request.getQuery(), request.getTopK(), latencyMs);
 
         return ResponseEntity.ok(ContextSearchResponse.builder()
                 .success(true)

@@ -8,6 +8,8 @@ import com.contextos.retrieval.context.ContextAssembler;
 import com.contextos.retrieval.hybrid.HybridSearchMerger;
 import com.contextos.retrieval.reranker.DeterministicReranker;
 import com.contextos.security.acl.AclRetrievalFilter;
+import com.contextos.analytics.RetrievalTracer;
+import com.contextos.common.cache.RedisCacheManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,6 +21,7 @@ import org.springframework.http.ResponseEntity;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -39,6 +42,12 @@ class ContextSearchControllerTest {
 
     @Mock
     private ContextAssembler contextAssembler;
+
+    @Mock
+    private RedisCacheManager redisCacheManager;
+
+    @Mock
+    private RetrievalTracer retrievalTracer;
 
     @InjectMocks
     private ContextSearchController contextSearchController;
@@ -68,6 +77,7 @@ class ContextSearchControllerTest {
                 "ctx_123", request.getQuery(), OffsetDateTime.now(), List.of(), "<retrieved_document></retrieved_document>", 50, null
         );
 
+        when(redisCacheManager.getCachedContext(any(), any(), any())).thenReturn(Optional.empty());
         when(hybridSearchMerger.searchAndMerge(eq(tenantId), anyString(), anyInt())).thenReturn(List.of());
         when(aclRetrievalFilter.filterAuthorized(eq(tenantId), any(), any(), any())).thenReturn(List.of());
         when(deterministicReranker.rerank(any())).thenReturn(List.of());
