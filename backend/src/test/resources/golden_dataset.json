@@ -1,0 +1,37 @@
+[
+  {
+    "id": "gold-001",
+    "query": "Why did the Apollo payment release fail?",
+    "expectedSources": ["APOLLO-421", "PR-981", "INC-302"],
+    "minTopK": 5,
+    "minExpectedMatches": 2
+  },
+  {
+    "id": "gold-002",
+    "query": "What is the timeout threshold for Stripe webhook handling?",
+    "expectedSources": ["PR-981", "PAYMENTS-CONFIG"],
+    "minTopK": 3,
+    "minExpectedMatches": 1
+  },
+  {
+    "id": "gold-003",
+    "query": "Where are employee reimbursement policy guidelines documented?",
+    "expectedSources": ["POLICY-EXPENSE-2026", "HR-HANDBOOK"],
+    "minTopK": 5,
+    "minExpectedMatches": 1
+  },
+  {
+    "id": "gold-004",
+    "query": "How do we rotate database credentials in staging?",
+    "expectedSources": ["RUNBOOK-DB-ROTATION", "SECRETS-MGMT"],
+    "minTopK": 5,
+    "minExpectedMatches": 1
+  },
+  {
+    "id": "gold-005",
+    "query": "What caused the Redis connection pool exhaustion during peak hours?",
+    "expectedSources": ["INC-409", "REDIS-ARCHITECTURE", "PR-1022"],
+    "minTopK": 5,
+    "minExpectedMatches": 2
+  }
+]
