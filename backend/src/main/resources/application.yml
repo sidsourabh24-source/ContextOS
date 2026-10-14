@@ -38,3 +38,11 @@ contextos:
     dimension: 1536
   security:
     api-key-header: X-ContextOS-API-Key
+  llm:
+    provider: ${LLM_PROVIDER:mock} # mock, openai, or ollama
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      model: gpt-4o-mini
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      model: llama3.2
