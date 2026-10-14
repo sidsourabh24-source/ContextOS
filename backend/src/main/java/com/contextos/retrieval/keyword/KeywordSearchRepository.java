@@ -21,22 +21,21 @@ public class KeywordSearchRepository {
             return List.of();
         }
 
-        String formattedQuery = searchQuery.trim().replaceAll("\\s+", " & ");
         String sql = """
             SELECT c.id AS chunk_id, c.document_id, c.tenant_id, c.content,
-                   ts_rank(to_tsvector('english', c.content), to_tsquery('english', :query)) AS rank,
+                   ts_rank(to_tsvector('english', c.content), plainto_tsquery('english', :query)) AS rank,
                    c.chunk_index, d.title, d.url
             FROM chunks c
             JOIN documents d ON c.document_id = d.id
             WHERE c.tenant_id = :tenantId
-              AND to_tsvector('english', c.content) @@ to_tsquery('english', :query)
+              AND to_tsvector('english', c.content) @@ plainto_tsquery('english', :query)
             ORDER BY rank DESC
             LIMIT :limit
             """;
 
         Query nativeQuery = entityManager.createNativeQuery(sql)
                 .setParameter("tenantId", tenantId)
-                .setParameter("query", formattedQuery)
+                .setParameter("query", searchQuery.trim())
                 .setParameter("limit", limit);
 
         List<Object[]> rows = nativeQuery.getResultList();

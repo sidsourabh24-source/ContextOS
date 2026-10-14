@@ -46,14 +46,19 @@ public class ContextSearchController {
         }
 
         String userId = tenantId.toString();
+        String userScope = (request.getUserGroups() != null && !request.getUserGroups().isEmpty())
+                ? String.join("_", request.getUserGroups().stream().sorted().toList())
+                : "DEFAULT";
+        String cacheUserKey = tenantId + ":" + userScope;
 
-        // 1. Check Redis Cache
-        Optional<ContextPackage> cachedPkg = redisCacheManager.getCachedContext(tenantId, userId, request.getQuery());
-        if (cachedPkg.isPresent()) {
-            return ResponseEntity.ok(ContextSearchResponse.builder()
-                    .success(true)
-                    .contextPackage(cachedPkg.get())
-                    .build());
+        // 1. Check Redis Cache (Role-scoped to prevent privilege leakage)
+        Optional<ContextSearchResponse> cachedSearch = redisCacheManager.getCachedSearch(tenantId, cacheUserKey, request.getQuery());
+        if (cachedSearch.isPresent()) {
+            ContextSearchResponse cachedResp = cachedSearch.get();
+            if (cachedResp.getTraceDetails() != null) {
+                cachedResp.getTraceDetails().setFromCache(true);
+            }
+            return ResponseEntity.ok(cachedResp);
         }
 
         // 2. Hybrid Search
@@ -67,6 +72,13 @@ public class ContextSearchController {
                 candidates
         );
 
+        List<String> strippedTitles = candidates.stream()
+                .filter(c -> !authorized.contains(c))
+                .map(CandidateChunk::documentTitle)
+                .filter(t -> t != null && !t.isBlank())
+                .distinct()
+                .toList();
+
         // 4. Deterministic Reranker
         List<RankedChunk> ranked = deterministicReranker.rerank(authorized);
 
@@ -79,13 +91,24 @@ public class ContextSearchController {
                 latencyMs
         );
 
-        // 6. Write to Cache and Telemetry
-        redisCacheManager.cacheContext(tenantId, userId, request.getQuery(), contextPackage);
-        retrievalTracer.recordTrace(tenantId, request.getQuery(), request.getTopK(), latencyMs);
+        ContextSearchResponse.TraceDetails trace = ContextSearchResponse.TraceDetails.builder()
+                .totalCandidatesCount(candidates.size())
+                .aclAuthorizedCount(authorized.size())
+                .aclFilteredCount(candidates.size() - authorized.size())
+                .fromCache(false)
+                .strippedTitles(strippedTitles)
+                .build();
 
-        return ResponseEntity.ok(ContextSearchResponse.builder()
+        ContextSearchResponse response = ContextSearchResponse.builder()
                 .success(true)
                 .contextPackage(contextPackage)
-                .build());
+                .traceDetails(trace)
+                .build();
+
+        // 6. Write to Cache and Telemetry
+        redisCacheManager.cacheSearch(tenantId, cacheUserKey, request.getQuery(), response);
+        retrievalTracer.recordTrace(tenantId, request.getQuery(), request.getTopK(), latencyMs);
+
+        return ResponseEntity.ok(response);
     }
 }

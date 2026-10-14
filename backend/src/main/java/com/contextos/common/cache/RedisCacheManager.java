@@ -58,6 +58,39 @@ public class RedisCacheManager {
         }
     }
 
+    public Optional<com.contextos.api.dto.ContextSearchResponse> getCachedSearch(UUID tenantId, String userKey, String query) {
+        if (tenantId == null || userKey == null || query == null) {
+            return Optional.empty();
+        }
+
+        try {
+            String cacheKey = buildCacheKey(tenantId, userKey, query);
+            String cachedJson = redisTemplate.opsForValue().get(cacheKey);
+
+            if (cachedJson != null && !cachedJson.isBlank()) {
+                com.contextos.api.dto.ContextSearchResponse resp = objectMapper.readValue(cachedJson, com.contextos.api.dto.ContextSearchResponse.class);
+                return Optional.of(resp);
+            }
+        } catch (Exception e) {
+            log.warn("Redis cache read failed: {}", e.getMessage());
+        }
+        return Optional.empty();
+    }
+
+    public void cacheSearch(UUID tenantId, String userKey, String query, com.contextos.api.dto.ContextSearchResponse response) {
+        if (tenantId == null || userKey == null || query == null || response == null) {
+            return;
+        }
+
+        try {
+            String cacheKey = buildCacheKey(tenantId, userKey, query);
+            String json = objectMapper.writeValueAsString(response);
+            redisTemplate.opsForValue().set(cacheKey, json, DEFAULT_TTL);
+        } catch (Exception e) {
+            log.warn("Redis cache write failed: {}", e.getMessage());
+        }
+    }
+
     public String buildCacheKey(UUID tenantId, String userId, String query) {
         String queryHash = hashQuery(query);
         return String.format("context:%s:%s:%s", tenantId, userId, queryHash);
