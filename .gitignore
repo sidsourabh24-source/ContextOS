@@ -1,5 +1,6 @@
 # Build & Package outputs
 backend/target/
+backend/.maven/
 frontend/.next/
 frontend/out/
 frontend/node_modules/
